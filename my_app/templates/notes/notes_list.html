@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Мои заметки</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Мои заметки</h1>
+        <a href="{% url 'create_note' %}" class="btn btn-success mb-4">+ Новая заметка</a>
+        
+        <div class="row">
+            {% for note in notes %}
+            <div class="col-md-6 mb-4">
+                <div class="card {% if note.is_completed %}border-success{% else %}border-primary{% endif %}">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            {{ note.title }}
+                            {% if note.is_completed %}
+                                <span class="badge bg-success">Выполнено</span>
+                            {% endif %}
+                        </h5>
+                        <p class="card-text">{{ note.content|truncatechars:100 }}</p>
+                        <p class="text-muted">
+                            <small>
+                                Создано: {{ note.created_at|date:"d.m.Y H:i" }}<br>
+                                {% if note.due_date %}
+                                    Срок: {{ note.due_date|date:"d.m.Y H:i" }}
+                                {% endif %}
+                            </small>
+                        </p>
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'create_note' %}?id={{ note.id }}" class="btn btn-sm btn-warning">Редактировать</a>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12">
+                <div class="alert alert-info">Заметок пока нет</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>
