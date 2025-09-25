@@ -20,7 +20,7 @@ def create_note(request):
     return render(request, 'notes/note_form.html', {'form': form})
 
 
-def delete_note(request, pk):  # pk будет автоматически извлечен из URL
+def delete_note(request, pk):  
     note = get_object_or_404(Note, id=pk)
     
     if request.method == 'POST':

@@ -1,47 +1,378 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Мои заметки</title>
+    <title>{% if note %}Редактировать{% else %}Создать{% endif %} заметку</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .form-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .card {
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: none;
+            border-radius: 10px;
+        }
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px 10px 0 0 !important;
+        }
+        .character-count {
+            font-size: 0.8rem;
+            color: #6c757d;
+            text-align: right;
+        }
+        .tag-badge {
+            margin-right: 5px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .tag-badge.selected {
+            transform: scale(1.1);
+            box-shadow: 0 0 0 2px #007bff;
+        }
+        .preview-card {
+            border-left: 4px solid #007bff;
+            background-color: #f8f9fa;
+            transition: all 0.3s;
+        }
+        .required-field::after {
+            content: " *";
+            color: red;
+        }
+        .btn-group-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        @media (max-width: 768px) {
+            .btn-group-actions {
+                flex-direction: column;
+            }
+            .btn-group-actions .btn {
+                width: 100%;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div class="container mt-5">
-        <h1 class="mb-4">Мои заметки</h1>
-        <a href="{% url 'create_note' %}" class="btn btn-success mb-4">+ Новая заметка</a>
-        
-        <div class="row">
-            {% for note in notes %}
-            <div class="col-md-6 mb-4">
-                <div class="card {% if note.is_completed %}border-success{% else %}border-primary{% endif %}">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            {{ note.title }}
-                            {% if note.is_completed %}
-                                <span class="badge bg-success">Выполнено</span>
-                            {% endif %}
-                        </h5>
-                        <p class="card-text">{{ note.content|truncatechars:100 }}</p>
-                        <p class="text-muted">
-                            <small>
-                                Создано: {{ note.created_at|date:"d.m.Y H:i" }}<br>
-                                {% if note.due_date %}
-                                    Срок: {{ note.due_date|date:"d.m.Y H:i" }}
-                                {% endif %}
-                            </small>
-                        </p>
-                        <div class="d-flex justify-content-between">
-                            <a href="{% url 'create_note' %}?id={{ note.id }}" class="btn btn-sm btn-warning">Редактировать</a>
+    <div class="container mt-4">
+        <div class="form-container">
+            <!-- Основная карточка формы -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0">
+                            <i class="fas fa-{% if note %}edit{% else %}plus{% endif %} me-2"></i>
+                            {% if note %}Редактировать заметку{% else %}Создать новую заметку{% endif %}
+                        </h3>
+                        <span class="badge bg-light text-dark">
+                            <i class="fas fa-hashtag me-1"></i>{% if note %}{{ note.id }}{% else %}Новая{% endif %}
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <form method="post" id="noteForm">
+                        {% csrf_token %}
+                        
+                        <!-- Сообщения об ошибках -->
+                        {% if form.errors %}
+                        <div class="alert alert-danger alert-dismissible fade show">
+                            <h6><i class="fas fa-exclamation-triangle me-2"></i>Ошибки в форме:</h6>
+                            <ul class="mb-0">
+                                {% for field in form %}
+                                    {% for error in field.errors %}
+                                        <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+                                    {% endfor %}
+                                {% endfor %}
+                            </ul>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                        {% endif %}
 
+                        <!-- Заголовок -->
+                        <div class="mb-4">
+                            <label for="id_title" class="form-label required-field">
+                                <i class="fas fa-heading me-1"></i>Заголовок заметки
+                            </label>
+                            {{ form.title }}
+                            <div class="character-count">
+                                <span id="titleCount">0</span>/100 символов
+                            </div>
+                        </div>
+
+                        <!-- Содержание -->
+                        <div class="mb-4">
+                            <label for="id_content" class="form-label required-field">
+                                <i class="fas fa-align-left me-1"></i>Содержание заметки
+                            </label>
+                            {{ form.content }}
+                            <div class="character-count">
+                                <span id="contentCount">0</span> символов
+                            </div>
+                            <small class="text-muted">Поддерживается Markdown-разметка</small>
+                        </div>
+
+                        <!-- Даты и теги -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label for="id_due_date" class="form-label">
+                                    <i class="fas fa-calendar-alt me-1"></i>Срок выполнения
+                                </label>
+                                {{ form.due_date }}
+                                <div class="form-text">
+                                    Оставьте пустым, если срок не установлен
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label class="form-label">
+                                    <i class="fas fa-tags me-1"></i>Теги
+                                </label>
+                                <!-- Быстрый выбор тегов -->
+                                <div class="mb-2" id="quickTags">
+                                    {% for tag in popular_tags %}
+                                    <span class="badge bg-secondary tag-badge" data-tag-name="{{ tag.name }}">
+                                        {{ tag.name }}
+                                        <i class="fas fa-check ms-1" style="display: none;"></i>
+                                    </span>
+                                    {% endfor %}
+                                </div>
+                                {{ form.tags }}
+                                <div class="form-text">
+                                    Вводите теги через запятую или выбирайте из популярных
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Дополнительные настройки -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    {{ form.is_completed }}
+                                    <label class="form-check-label" for="id_is_completed">
+                                        <i class="fas fa-check-circle me-1"></i>Заметка завершена
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check form-switch mt-2">
+                                    <input class="form-check-input" type="checkbox" id="id_pinned" name="pinned"
+                                           {% if note.pinned %}checked{% endif %}>
+                                    <label class="form-check-label" for="id_pinned">
+                                        <i class="fas fa-thumbtack me-1"></i>Закрепить заметку
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="id_priority" class="form-label">Приоритет</label>
+                                <select class="form-select" id="id_priority" name="priority">
+                                    <option value="low" {% if note.priority == 'low' %}selected{% endif %}>Низкий</option>
+                                    <option value="medium" selected>Средний</option>
+                                    <option value="high" {% if note.priority == 'high' %}selected{% endif %}>Высокий</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Информация о заметке (только при редактировании) -->
+                        {% if note %}
+                        <div class="alert alert-info">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <strong><i class="fas fa-calendar-plus me-1"></i>Создана:</strong><br>
+                                    {{ note.created_at|date:"d.m.Y H:i" }}
+                                </div>
+                                <div class="col-md-4">
+                                    <strong><i class="fas fa-edit me-1"></i>Изменена:</strong><br>
+                                    {{ note.updated_at|date:"d.m.Y H:i" }}
+                                </div>
+                                <div class="col-md-4">
+                                    <strong><i class="fas fa-user me-1"></i>Автор:</strong><br>
+                                    {{ note.author.get_full_name|default:note.author.username }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Предпросмотр заметки -->
+                        <div class="mb-4">
+                            <label class="form-label">
+                                <i class="fas fa-eye me-1"></i>Предпросмотр
+                            </label>
+                            <div class="preview-card p-3">
+                                <h5 id="previewTitle">{{ form.title.value|default:"Заголовок заметки" }}</h5>
+                                <div class="text-muted small mb-2">
+                                    <span id="previewDate">{{ note.created_at|date:"d.m.Y H:i"|default:"Только что" }}</span>
+                                    {% if form.due_date.value %}
+                                    • <span id="previewDueDate">Срок: {{ form.due_date.value|date:"d.m.Y H:i" }}</span>
+                                    {% endif %}
+                                </div>
+                                <hr>
+                                <div id="previewContent">
+                                    {{ form.content.value|default:"Содержание заметки..."|linebreaks }}
+                                </div>
+                                <div id="previewTags" class="mt-2">
+                                    <!-- Теги будут добавляться через JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Кнопки действий -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="btn-group-actions">
+                                <button type="submit" class="btn btn-success btn-lg">
+                                    <i class="fas fa-save me-2"></i>
+                                    {% if note %}Обновить{% else %}Создать{% endif %}
+                                </button>
+                                <button type="submit" name="save_and_new" value="true" class="btn btn-outline-success">
+                                    <i class="fas fa-plus me-2"></i>Сохранить и создать новую
+                                </button>
+                                <a href="{% url 'notes_list' %}" class="btn btn-secondary">
+                                    <i class="fas fa-times me-2"></i>Отмена
+                                </a>
+                            </div>
+                            
+                            {% if note %}
+                            <div>
+                                <a href="{% url 'note_delete' note.id %}" 
+                                   class="btn btn-outline-danger"
+                                   onclick="return confirm('Вы уверены, что хотите удалить эту заметку?')">
+                                    <i class="fas fa-trash me-2"></i>Удалить
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Панель быстрых советов -->
+            <div class="card mt-4">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Советы по созданию заметок</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-2"></i>Используйте конкретные заголовки</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Добавляйте сроки для задач</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-2"></i>Группируйте заметки по тегам</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Закрепляйте важные заметки</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
             </div>
-            {% empty %}
-            <div class="col-12">
-                <div class="alert alert-info">Заметок пока нет</div>
-            </div>
-            {% endfor %}
         </div>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded'), function() {
+            // Добавляем классы к существующим полям формы
+            document.getElementById('id_title').classList.add('form-control');
+            document.getElementById('id_content').classList.add('form-control');
+            document.getElementById('id_due_date').classList.add('form-control');
+            document.getElementById('id_tags').classList.add('form-control');
+            document.getElementById('id_is_completed').classList.add('form-check-input');
+
+            // Подсчет символов
+            const titleInput = document.getElementById('id_title');
+            const contentInput = document.getElementById('id_content');
+            const titleCount = document.getElementById('titleCount');
+            const contentCount = document.getElementById('contentCount');
+            
+            function updateCharacterCount() {
+                titleCount.textContent = titleInput.value.length;
+                contentCount.textContent = contentInput.value.length;
+            }
+            
+            titleInput.addEventListener('input', updateCharacterCount);
+            contentInput.addEventListener('input', updateCharacterCount);
+            updateCharacterCount();
+        }
+            // Обновление предпросмотра
+            function updatePreview() {
+                document.getElementById('previewTitle').textContent = 
+                    titleInput.value || 'Заголовок заметки';
+                document.getElementById('previewContent').textContent = 
+                    contentInput.value || 'Содержание заметки...';
+                
+                // Обновление тегов в предпросмотре
+                const tagsInput = document.getElementById('id_tags');
+                const previewTags = document.getElementById('previewTags');
+                if (tagsInput.value) {
+                    const tags = tagsInput.value.split(',').map(tag => tag.trim());
+                    previewTags.innerHTML = tags.map(tag => 
+                        `<span class="badge bg-secondary me-1">${tag}</span>`
+                    ).join('');
+                } else {
+                    previewTags.innerHTML = '';
+                }
+            }
+            
+            titleInput.addEventListener('input', updatePreview);
+            contentInput.addEventListener('input', updatePreview);
+            document.getElementById('id_tags').addEventListener('input', updatePreview);
+            updatePreview();
+
+            // Быстрый выбор тегов
+            const tagBadges = document.querySelectorAll('.tag-badge');
+            const tagsInput = document.getElementById('id_tags');
+            
+            tagBadges.forEach(badge => {
+                badge.addEventListener('click', function() {
+                    const tagName = this.getAttribute('data-tag-name');
+                    const currentTags = tagsInput.value.split(',').map(t => t.trim()).filter(t => t);
+                    
+                    if (currentTags.includes(tagName)) {
+                        // Удаляем тег
+                        const newTags = currentTags.filter(t => t !== tagName);
+                        tagsInput.value = newTags.join(', ');
+                        this.classList.remove('selected');
+                        this.querySelector('.fa-check').style.display = 'none';
+                    } else {
+                        // Добавляем тег
+                        currentTags.push(tagName);
+                        tagsInput.value = currentTags.join(', ');
+                        this.classList.add('selected');
+                        this.querySelector('.fa-check').style.display = 'inline';
+                    }
+                    updatePreview();
+                });
+            });
+
+            // Подтверждение при уходе со страницы
+            let formChanged = false;
+            const formInputs = document.querySelectorAll('input, textarea, select');
+            
+            formInputs.forEach(input => {
+                const initialValue = input.value;
+                input.addEventListener('input', function() {
+                    formChanged = input.value !== initialValue;
+                });
+            });
+            
+            window.addEventListener('beforeunload', function(e) {
+                if (formChanged) {
+                    e.preventDefault();
+                    e.returnValue = '';
+                }
+            });
+            
+            document.getElementById('noteForm').addEventListener('submit', function() {
+                formChanged = false;
+            });
+
+    </script>
 </body>
 </html>
