@@ -5,61 +5,36 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        .form-container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        .card {
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            border: none;
-            border-radius: 10px;
-        }
-        .card-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 10px 10px 0 0 !important;
-        }
-        .character-count {
-            font-size: 0.8rem;
-            color: #6c757d;
-            text-align: right;
-        }
-        .tag-badge {
-            margin-right: 5px;
-            margin-bottom: 5px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .tag-badge.selected {
-            transform: scale(1.1);
-            box-shadow: 0 0 0 2px #007bff;
-        }
-        .preview-card {
-            border-left: 4px solid #007bff;
-            background-color: #f8f9fa;
-            transition: all 0.3s;
-        }
-        .required-field::after {
-            content: " *";
-            color: red;
-        }
-        .btn-group-actions {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        @media (max-width: 768px) {
-            .btn-group-actions {
-                flex-direction: column;
-            }
-            .btn-group-actions .btn {
-                width: 100%;
-            }
-        }
+        /* Ваши существующие стили остаются без изменений */
+        .form-container { max-width: 800px; margin: 0 auto; }
+        .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; border-radius: 10px; }
+        .card-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px 10px 0 0 !important; }
+        .character-count { font-size: 0.8rem; color: #6c757d; text-align: right; }
+        .tag-badge { margin-right: 5px; margin-bottom: 5px; cursor: pointer; transition: all 0.3s; }
+        .tag-badge.selected { transform: scale(1.1); box-shadow: 0 0 0 2px #007bff; }
+        .preview-card { border-left: 4px solid #007bff; background-color: #f8f9fa; transition: all 0.3s; }
+        .required-field::after { content: " *"; color: red; }
+        .btn-group-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .editor-toolbar { background-color: #f8f9fa; border: 1px solid #dee2e6; border-bottom: none; padding: 8px; border-radius: 5px 5px 0 0; }
+        .editor-toolbar button { margin-right: 5px; margin-bottom: 5px; }
+        @media (max-width: 768px) { .btn-group-actions { flex-direction: column; } .btn-group-actions .btn { width: 100%; } }
+        .error-message { color: #dc3545; font-size: 0.875em; margin-top: 0.25rem; }
     </style>
 </head>
 <body>
     <div class="container mt-4">
+        <!-- Сообщения об успехе/ошибках -->
+        {% if messages %}
+        <div class="mb-3">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <div class="form-container">
             <!-- Основная карточка формы -->
             <div class="card">
@@ -79,18 +54,17 @@
                     <form method="post" id="noteForm">
                         {% csrf_token %}
                         
-                        <!-- Сообщения об ошибках -->
+                        <!-- Вывод ошибок формы -->
                         {% if form.errors %}
-                        <div class="alert alert-danger alert-dismissible fade show">
-                            <h6><i class="fas fa-exclamation-triangle me-2"></i>Ошибки в форме:</h6>
+                        <div class="alert alert-danger">
+                            <strong>Пожалуйста, исправьте ошибки:</strong>
                             <ul class="mb-0">
-                                {% for field in form %}
-                                    {% for error in field.errors %}
-                                        <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+                                {% for field, errors in form.errors.items %}
+                                    {% for error in errors %}
+                                        <li>{{ error }}</li>
                                     {% endfor %}
                                 {% endfor %}
                             </ul>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                         {% endif %}
 
@@ -99,22 +73,77 @@
                             <label for="id_title" class="form-label required-field">
                                 <i class="fas fa-heading me-1"></i>Заголовок заметки
                             </label>
-                            {{ form.title }}
+                            <input type="text" 
+                                   name="title" 
+                                   id="id_title" 
+                                   class="form-control {% if form.title.errors %}is-invalid{% endif %}" 
+                                   value="{{ form.title.value|default:'' }}"
+                                   maxlength="100"
+                                   placeholder="Введите заголовок заметки"
+                                   required>
+                            {% if form.title.errors %}
+                                <div class="error-message">{{ form.title.errors.0 }}</div>
+                            {% endif %}
                             <div class="character-count">
                                 <span id="titleCount">0</span>/100 символов
                             </div>
                         </div>
 
-                        <!-- Содержание -->
+                        <!-- Содержание с редактором -->
                         <div class="mb-4">
                             <label for="id_content" class="form-label required-field">
                                 <i class="fas fa-align-left me-1"></i>Содержание заметки
                             </label>
-                            {{ form.content }}
+                            
+                            <!-- Панель инструментов редактора -->
+                            <div class="editor-toolbar">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="formatText('bold')" title="Жирный">
+                                    <i class="fas fa-bold"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="formatText('italic')" title="Курсив">
+                                    <i class="fas fa-italic"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="formatText('underline')" title="Подчеркивание">
+                                    <i class="fas fa-underline"></i>
+                                </button>
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="formatText('h1')" title="Заголовок 1">
+                                        H1
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="formatText('h2')" title="Заголовок 2">
+                                        H2
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="formatText('h3')" title="Заголовок 3">
+                                        H3
+                                    </button>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="formatText('list-ul')" title="Маркированный список">
+                                    <i class="fas fa-list-ul"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="formatText('list-ol')" title="Нумерованный список">
+                                    <i class="fas fa-list-ol"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="formatText('link')" title="Ссылка">
+                                    <i class="fas fa-link"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="formatText('code')" title="Код">
+                                    <i class="fas fa-code"></i>
+                                </button>
+                            </div>
+                            
+                            <textarea name="content" 
+                                      id="id_content" 
+                                      class="form-control {% if form.content.errors %}is-invalid{% endif %}" 
+                                      rows="8" 
+                                      placeholder="Введите содержание заметки..."
+                                      required>{{ form.content.value|default:'' }}</textarea>
+                            {% if form.content.errors %}
+                                <div class="error-message">{{ form.content.errors.0 }}</div>
+                            {% endif %}
                             <div class="character-count">
                                 <span id="contentCount">0</span> символов
                             </div>
-                            <small class="text-muted">Поддерживается Markdown-разметка</small>
+                            <small class="text-muted">Поддерживается Markdown-разметка. Используйте панель инструментов для быстрого форматирования.</small>
                         </div>
 
                         <!-- Даты и теги -->
@@ -123,28 +152,38 @@
                                 <label for="id_due_date" class="form-label">
                                     <i class="fas fa-calendar-alt me-1"></i>Срок выполнения
                                 </label>
-                                {{ form.due_date }}
+                                <input type="datetime-local" 
+                                       name="due_date" 
+                                       id="id_due_date" 
+                                       class="form-control" 
+                                       value="{{ form.due_date.value|date:'Y-m-d\TH:i'|default:'' }}">
                                 <div class="form-text">
                                     Оставьте пустым, если срок не установлен
                                 </div>
                             </div>
                             
                             <div class="col-md-6">
-                                <label class="form-label">
+                                <label for="id_tags" class="form-label">
                                     <i class="fas fa-tags me-1"></i>Теги
                                 </label>
-                                <!-- Быстрый выбор тегов -->
-                                <div class="mb-2" id="quickTags">
-                                    {% for tag in popular_tags %}
-                                    <span class="badge bg-secondary tag-badge" data-tag-name="{{ tag.name }}">
-                                        {{ tag.name }}
-                                        <i class="fas fa-check ms-1" style="display: none;"></i>
-                                    </span>
-                                    {% endfor %}
-                                </div>
-                                {{ form.tags }}
+                                <input type="text" 
+                                       name="tags" 
+                                       id="id_tags" 
+                                       class="form-control" 
+                                       value="{{ form.tags.value|default:'' }}"
+                                       placeholder="работа, личное, важное">
                                 <div class="form-text">
                                     Вводите теги через запятую или выбирайте из популярных
+                                </div>
+                                
+                                <!-- Быстрые теги -->
+                                <div class="mt-2">
+                                    <small class="text-muted">Быстрые теги:</small>
+                                    {% for tag in popular_tags %}
+                                    <span class="badge bg-light text-dark tag-badge" onclick="addTag('{{ tag }}')">
+                                        {{ tag }}
+                                    </span>
+                                    {% endfor %}
                                 </div>
                             </div>
                         </div>
@@ -153,15 +192,16 @@
                         <div class="row mb-4">
                             <div class="col-md-6">
                                 <div class="form-check form-switch">
-                                    {{ form.is_completed }}
+                                    <input class="form-check-input" type="checkbox" id="id_is_completed" name="is_completed"
+                                           {% if form.is_completed.value %}checked{% endif %}>
                                     <label class="form-check-label" for="id_is_completed">
                                         <i class="fas fa-check-circle me-1"></i>Заметка завершена
                                     </label>
-                                </div>
+                                </div> 
                                 
                                 <div class="form-check form-switch mt-2">
                                     <input class="form-check-input" type="checkbox" id="id_pinned" name="pinned"
-                                           {% if note.pinned %}checked{% endif %}>
+                                           {% if note.pinned or form.pinned.value %}checked{% endif %}>
                                     <label class="form-check-label" for="id_pinned">
                                         <i class="fas fa-thumbtack me-1"></i>Закрепить заметку
                                     </label>
@@ -171,9 +211,9 @@
                             <div class="col-md-6">
                                 <label for="id_priority" class="form-label">Приоритет</label>
                                 <select class="form-select" id="id_priority" name="priority">
-                                    <option value="low" {% if note.priority == 'low' %}selected{% endif %}>Низкий</option>
-                                    <option value="medium" selected>Средний</option>
-                                    <option value="high" {% if note.priority == 'high' %}selected{% endif %}>Высокий</option>
+                                    <option value="low" {% if form.priority.value == 'low' %}selected{% endif %}>Низкий</option>
+                                    <option value="medium" {% if not form.priority.value or form.priority.value == 'medium' %}selected{% endif %}>Средний</option>
+                                    <option value="high" {% if form.priority.value == 'high' %}selected{% endif %}>Высокий</option>
                                 </select>
                             </div>
                         </div>
@@ -206,7 +246,7 @@
                             <div class="preview-card p-3">
                                 <h5 id="previewTitle">{{ form.title.value|default:"Заголовок заметки" }}</h5>
                                 <div class="text-muted small mb-2">
-                                    <span id="previewDate">{{ note.created_at|date:"d.m.Y H:i"|default:"Только что" }}</span>
+                                    <span id="previewDate">{% if note %}{{ note.created_at|date:"d.m.Y H:i" }}{% else %}Только что{% endif %}</span>
                                     {% if form.due_date.value %}
                                     • <span id="previewDueDate">Срок: {{ form.due_date.value|date:"d.m.Y H:i" }}</span>
                                     {% endif %}
@@ -249,42 +289,12 @@
                     </form>
                 </div>
             </div>
-
-            <!-- Панель быстрых советов -->
-            <div class="card mt-4">
-                <div class="card-header bg-light">
-                    <h6 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Советы по созданию заметок</h6>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <ul class="list-unstyled">
-                                <li><i class="fas fa-check text-success me-2"></i>Используйте конкретные заголовки</li>
-                                <li><i class="fas fa-check text-success me-2"></i>Добавляйте сроки для задач</li>
-                            </ul>
-                        </div>
-                        <div class="col-md-6">
-                            <ul class="list-unstyled">
-                                <li><i class="fas fa-check text-success me-2"></i>Группируйте заметки по тегам</li>
-                                <li><i class="fas fa-check text-success me-2"></i>Закрепляйте важные заметки</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded'), function() {
-            // Добавляем классы к существующим полям формы
-            document.getElementById('id_title').classList.add('form-control');
-            document.getElementById('id_content').classList.add('form-control');
-            document.getElementById('id_due_date').classList.add('form-control');
-            document.getElementById('id_tags').classList.add('form-control');
-            document.getElementById('id_is_completed').classList.add('form-check-input');
-
+        document.addEventListener('DOMContentLoaded', function() {
             // Подсчет символов
             const titleInput = document.getElementById('id_title');
             const contentInput = document.getElementById('id_content');
@@ -299,13 +309,14 @@
             titleInput.addEventListener('input', updateCharacterCount);
             contentInput.addEventListener('input', updateCharacterCount);
             updateCharacterCount();
-        }
+
             // Обновление предпросмотра
             function updatePreview() {
                 document.getElementById('previewTitle').textContent = 
                     titleInput.value || 'Заголовок заметки';
-                document.getElementById('previewContent').textContent = 
-                    contentInput.value || 'Содержание заметки...';
+                
+                document.getElementById('previewContent').innerHTML = 
+                    contentInput.value.replace(/\n/g, '<br>') || 'Содержание заметки...';
                 
                 // Обновление тегов в предпросмотре
                 const tagsInput = document.getElementById('id_tags');
@@ -325,40 +336,13 @@
             document.getElementById('id_tags').addEventListener('input', updatePreview);
             updatePreview();
 
-            // Быстрый выбор тегов
-            const tagBadges = document.querySelectorAll('.tag-badge');
-            const tagsInput = document.getElementById('id_tags');
-            
-            tagBadges.forEach(badge => {
-                badge.addEventListener('click', function() {
-                    const tagName = this.getAttribute('data-tag-name');
-                    const currentTags = tagsInput.value.split(',').map(t => t.trim()).filter(t => t);
-                    
-                    if (currentTags.includes(tagName)) {
-                        // Удаляем тег
-                        const newTags = currentTags.filter(t => t !== tagName);
-                        tagsInput.value = newTags.join(', ');
-                        this.classList.remove('selected');
-                        this.querySelector('.fa-check').style.display = 'none';
-                    } else {
-                        // Добавляем тег
-                        currentTags.push(tagName);
-                        tagsInput.value = currentTags.join(', ');
-                        this.classList.add('selected');
-                        this.querySelector('.fa-check').style.display = 'inline';
-                    }
-                    updatePreview();
-                });
-            });
-
             // Подтверждение при уходе со страницы
             let formChanged = false;
             const formInputs = document.querySelectorAll('input, textarea, select');
             
             formInputs.forEach(input => {
-                const initialValue = input.value;
                 input.addEventListener('input', function() {
-                    formChanged = input.value !== initialValue;
+                    formChanged = true;
                 });
             });
             
@@ -372,7 +356,96 @@
             document.getElementById('noteForm').addEventListener('submit', function() {
                 formChanged = false;
             });
+        });
 
+        // Функции форматирования текста
+        function formatText(command) {
+            const textarea = document.getElementById('id_content');
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const selectedText = textarea.value.substring(start, end);
+            
+            let formattedText = '';
+            
+            switch(command) {
+                case 'bold':
+                    formattedText = `**${selectedText}**`;
+                    break;
+                case 'italic':
+                    formattedText = `*${selectedText}*`;
+                    break;
+                case 'underline':
+                    formattedText = `<u>${selectedText}</u>`;
+                    break;
+                case 'h1':
+                    formattedText = `# ${selectedText}`;
+                    break;
+                case 'h2':
+                    formattedText = `## ${selectedText}`;
+                    break;
+                case 'h3':
+                    formattedText = `### ${selectedText}`;
+                    break;
+                case 'list-ul':
+                    formattedText = selectedText.split('\n').map(line => `- ${line}`).join('\n');
+                    break;
+                case 'list-ol':
+                    formattedText = selectedText.split('\n').map((line, index) => `${index + 1}. ${line}`).join('\n');
+                    break;
+                case 'link':
+                    formattedText = `[${selectedText}](url)`;
+                    break;
+                case 'code':
+                    formattedText = '```\n' + selectedText + '\n```';
+                    break;
+            }
+            
+            textarea.value = textarea.value.substring(0, start) + formattedText + textarea.value.substring(end);
+            textarea.focus();
+            textarea.setSelectionRange(start, start + formattedText.length);
+            
+            // Обновляем предпросмотр
+            updatePreview();
+        }
+
+        // Функция добавления тега
+        function addTag(tag) {
+            const tagsInput = document.getElementById('id_tags');
+            const currentTags = tagsInput.value.split(',').map(t => t.trim()).filter(t => t);
+            
+            if (!currentTags.includes(tag)) {
+                if (currentTags.length > 0) {
+                    tagsInput.value = currentTags.join(', ') + ', ' + tag;
+                } else {
+                    tagsInput.value = tag;
+                }
+            }
+            
+            updatePreview();
+        }
+
+        // Функция обновления предпросмотра (добавлена для полноты)
+        function updatePreview() {
+            const titleInput = document.getElementById('id_title');
+            const contentInput = document.getElementById('id_content');
+            const tagsInput = document.getElementById('id_tags');
+            
+            document.getElementById('previewTitle').textContent = 
+                titleInput.value || 'Заголовок заметки';
+            
+            document.getElementById('previewContent').innerHTML = 
+                contentInput.value.replace(/\n/g, '<br>') || 'Содержание заметки...';
+            
+            const previewTags = document.getElementById('previewTags');
+            if (tagsInput.value) {
+                const tags = tagsInput.value.split(',').map(tag => tag.trim());
+                previewTags.innerHTML = tags.map(tag => 
+                    `<span class="badge bg-secondary me-1">${tag}</span>`
+                ).join('');
+            } else {
+                previewTags.innerHTML = '';
+            }
+        }
     </script>
 </body>
 </html>
